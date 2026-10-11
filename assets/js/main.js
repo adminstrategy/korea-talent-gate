@@ -120,3 +120,58 @@ if (profileForm) {
   // No active submit control is exposed until the UI-only handler is installed.
   submitPreview.disabled = false;
 }
+
+// UI-only company request validation: no backend, analytics, or persistence.
+const hiringForm = document.querySelector('#company-registration');
+if (hiringForm) {
+  const submitPreview = hiringForm.querySelector('[data-hiring-submit]');
+  const status = hiringForm.querySelector('#hiring-status');
+  const fields = [...hiringForm.querySelectorAll('input, select, textarea')];
+  const validate = field => {
+    let message = '';
+    if (field.type === 'number' && !field.validity.valid) {
+      message = field.validity.valueMissing ? hiringForm.dataset.requiredError : hiringForm.dataset.numberError;
+    } else if (field.type === 'url' && field.value &&
+      (!field.validity.valid || !/^https?:\/\//i.test(field.value))) {
+      message = hiringForm.dataset.urlError;
+    } else if (!field.validity.valid ||
+      (field.required && ['text', 'tel'].includes(field.type) && !field.value.trim())) {
+      message = field.validity.typeMismatch ? hiringForm.dataset.emailError : hiringForm.dataset.requiredError;
+    }
+    field.setAttribute('aria-invalid', String(Boolean(message)));
+    const error = document.getElementById(
+      field.type === 'radio' ? 'hiring-experience-error' : `${field.id}-error`
+    );
+    error.textContent = message;
+    error.hidden = !message;
+    return !message;
+  };
+  const clearStatus = () => {
+    status.textContent = '';
+    status.className = 'profile-status';
+  };
+  fields.forEach(field => {
+    field.addEventListener('blur', () => {
+      if (field.value || field.getAttribute('aria-invalid') === 'true') validate(field);
+    });
+    field.addEventListener('input', () => {
+      clearStatus();
+      if (field.getAttribute('aria-invalid') === 'true') validate(field);
+    });
+    field.addEventListener('change', () => {
+      clearStatus();
+      if (field.type === 'radio') hiringForm.querySelectorAll('[name="hiring-experience"]').forEach(validate);
+      else validate(field);
+    });
+  });
+  const showPreviewResult = event => {
+    event.preventDefault();
+    const invalid = fields.filter(field => !validate(field));
+    status.textContent = invalid.length ? hiringForm.dataset.errorSummary : hiringForm.dataset.inactive;
+    status.className = `profile-status ${invalid.length ? 'is-error' : 'is-notice'}`;
+    if (invalid.length) invalid[0].focus();
+  };
+  hiringForm.addEventListener('submit', showPreviewResult);
+  submitPreview.addEventListener('click', showPreviewResult);
+  submitPreview.disabled = false;
+}
