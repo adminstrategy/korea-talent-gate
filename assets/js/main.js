@@ -52,3 +52,71 @@ if (availabilityDialog) {
   });
   availabilityDialog.addEventListener('close', () => dialogTrigger?.focus());
 }
+
+// UI-only profile validation. Never send data, read resume contents, or persist fields.
+const profileForm = document.querySelector('#talent-registration');
+if (profileForm) {
+  const submitPreview = profileForm.querySelector('[data-profile-submit]');
+  const status = profileForm.querySelector('#profile-status');
+  const fields = [...profileForm.querySelectorAll('input, select, textarea')];
+  const visa = profileForm.querySelector('#profile-5');
+  const errorFor = field => document.getElementById(
+    field.type === 'radio' ? 'korea-status-error' : `${field.id}-error`
+  );
+  const validate = field => {
+    let message = '';
+    if (field.type === 'file' && field.files.length) {
+      const file = field.files[0];
+      if (!/\.(pdf|doc|docx)$/i.test(file.name) || file.size > 10 * 1024 * 1024) {
+        message = profileForm.dataset.fileError;
+      }
+    } else if (!field.validity.valid || (field.required && field.type === 'text' && !field.value.trim())) {
+      message = field.validity.typeMismatch ? profileForm.dataset.emailError : profileForm.dataset.requiredError;
+    }
+    field.setAttribute('aria-invalid', String(Boolean(message)));
+    const error = errorFor(field);
+    error.textContent = message;
+    error.hidden = !message;
+    return !message;
+  };
+  const updateVisa = () => {
+    const outsideKorea = profileForm.querySelector('#korea-no').checked;
+    visa.readOnly = outsideKorea;
+    visa.required = !outsideKorea;
+    // Only clear an automatic placeholder when returning to the Korea option.
+    if (outsideKorea) visa.value = visa.dataset.notApplicable;
+    else if (visa.value === visa.dataset.notApplicable) visa.value = '';
+    visa.closest('.form-field').querySelector('.field-meta').textContent =
+      profileForm.querySelector(outsideKorea ? '#profile-12' : '#profile-1')
+        .closest('.form-field').querySelector('.field-meta').textContent;
+    visa.setAttribute('aria-invalid', 'false');
+    errorFor(visa).hidden = true;
+  };
+  fields.forEach(field => {
+    field.addEventListener('blur', () => {
+      if (field.value || field.getAttribute('aria-invalid') === 'true') validate(field);
+    });
+    field.addEventListener('input', () => {
+      status.textContent = '';
+      status.className = 'profile-status';
+      if (field.getAttribute('aria-invalid') === 'true') validate(field);
+    });
+    field.addEventListener('change', () => {
+      if (field.type === 'radio') {
+        updateVisa();
+        profileForm.querySelectorAll('[name="korea-status"]').forEach(validate);
+      } else validate(field);
+    });
+  });
+  const showPreviewResult = event => {
+    event.preventDefault();
+    const invalid = fields.filter(field => !validate(field));
+    status.textContent = invalid.length ? profileForm.dataset.errorSummary : profileForm.dataset.inactive;
+    status.className = `profile-status ${invalid.length ? 'is-error' : 'is-notice'}`;
+    if (invalid.length) invalid[0].focus();
+  };
+  profileForm.addEventListener('submit', showPreviewResult);
+  submitPreview.addEventListener('click', showPreviewResult);
+  // No active submit control is exposed until the UI-only handler is installed.
+  submitPreview.disabled = false;
+}
