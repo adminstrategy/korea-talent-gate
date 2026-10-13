@@ -104,7 +104,7 @@ if (profileForm) {
     field.addEventListener('change', () => {
       if (field.type === 'radio') {
         updateVisa();
-        profileForm.querySelectorAll('[name="korea-status"]').forEach(validate);
+        profileForm.querySelectorAll('[name="in_korea"]').forEach(validate);
       } else validate(field);
     });
   });
@@ -160,7 +160,7 @@ if (hiringForm) {
     });
     field.addEventListener('change', () => {
       clearStatus();
-      if (field.type === 'radio') hiringForm.querySelectorAll('[name="hiring-experience"]').forEach(validate);
+      if (field.type === 'radio') hiringForm.querySelectorAll('[name="foreign_hiring_experience"]').forEach(validate);
       else validate(field);
     });
   });
