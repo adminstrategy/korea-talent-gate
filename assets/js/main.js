@@ -56,6 +56,7 @@ if (availabilityDialog) {
 // Set this single public Web App URL when the backend is deployed. No secrets belong here.
 const KTG_API_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwQalWdJy1yKaJIjKD8e17nGBMjNXhinvc-2Z_p4r9W56GkKEJPH4HTHiBNqmfdscZgRQ/exec';
 const KTG_RESUME_MAX_BYTES = 5 * 1024 * 1024;
+const KTG_PRIVACY_POLICY_VERSION = 'privacy-v1.0-2026-10';
 const ktgLanguage = document.documentElement.lang.toLowerCase().startsWith('ko') ? 'KR' : 'EN';
 const submissionMessages = {
   KR: {
@@ -94,6 +95,12 @@ const buildSubmissionPayload = async (form, fields, type) => {
       payload.set(field.name, field.checked ? 'yes' : 'no');
     } else payload.set(field.name, field.value);
   });
+  const consentTime = new Date().toISOString();
+  payload.set('privacy_consent_at', payload.get('privacy_consent') === 'yes' ? consentTime : '');
+  payload.set('privacy_policy_version', KTG_PRIVACY_POLICY_VERSION);
+  if (type === 'talent') {
+    payload.set('opportunity_review_consent_at', payload.get('opportunity_review_consent') === 'yes' ? consentTime : '');
+  }
   payload.set('submission_type', type);
   payload.set('registration_language', ktgLanguage);
   payload.set('website_confirm', form.elements.namedItem('website_confirm').value);
