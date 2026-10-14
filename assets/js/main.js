@@ -39,21 +39,7 @@ if (animationToggle) {
   });
 }
 
-// Keep future destinations explicit without creating unfinished detail pages.
-const availabilityDialog = document.querySelector('.availability-dialog');
-if (availabilityDialog) {
-  let dialogTrigger;
-  document.querySelectorAll('[data-coming-soon]').forEach(button => {
-    button.addEventListener('click', () => {
-      dialogTrigger = button;
-      availabilityDialog.querySelector('h2').textContent = button.dataset.comingSoon;
-      availabilityDialog.showModal();
-    });
-  });
-  availabilityDialog.addEventListener('close', () => dialogTrigger?.focus());
-}
-
-// Set this single public Web App URL when the backend is deployed. No secrets belong here.
+// Public Apps Script Web App URL. No secrets belong here.
 const KTG_API_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwQalWdJy1yKaJIjKD8e17nGBMjNXhinvc-2Z_p4r9W56GkKEJPH4HTHiBNqmfdscZgRQ/exec';
 const KTG_RESUME_MAX_BYTES = 5 * 1024 * 1024;
 const KTG_PRIVACY_POLICY_VERSION = 'privacy-v1.0-2026-10';
@@ -171,7 +157,7 @@ const initializeSubmission = ({ form, button, status, fields, validate, type, af
     status.textContent = messages.submitting;
     status.className = 'profile-status is-notice';
     try {
-      // Never send to the placeholder. Configuration errors use the same safe UI message.
+      // Validate the public endpoint; configuration errors use the same safe UI message.
       const endpoint = new URL(KTG_API_ENDPOINT);
       if (endpoint.protocol !== 'https:' || !/^\/macros\/s\/[^/]+\/exec$/.test(endpoint.pathname) || endpoint.hostname !== 'script.google.com') {
         throw new Error('Endpoint not configured');
