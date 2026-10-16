@@ -1,3 +1,105 @@
+// One locale-independent taxonomy for fields, previews and future matching.
+// Keep static HTML fallbacks readable when JavaScript is unavailable.
+const KTG_JOB_FIELDS = Object.freeze([
+  { code: 'it_digital', KR: 'IT·디지털', EN: 'IT & Digital' },
+  { code: 'engineering_tech', KR: '엔지니어링·기술', EN: 'Engineering & Technology' },
+  { code: 'manufacturing_skilled', KR: '제조·기능·숙련', EN: 'Manufacturing & Skilled Trades' },
+  { code: 'business_trade_office', KR: '비즈니스·무역·사무', EN: 'Business, Trade & Administration' },
+  { code: 'service_tourism_culinary', KR: '서비스·관광·조리', EN: 'Services, Tourism & Culinary' },
+  { code: 'content_art_sports', KR: '콘텐츠·예술·스포츠', EN: 'Content, Arts & Sports' }
+].map(Object.freeze));
+const KTG_FIELD_COPY = {
+  KR: { other: '기타 분야', legacy: '기존 분류 — 확인 필요', choose: '선택해주세요', prepare: '이 분야로 프로필 준비하기', talent: '내 프로필 등록하기', company: '채용 문의하기' },
+  EN: { other: 'Other fields', legacy: 'Previous field — review needed', choose: 'Select an option', prepare: 'Prepare my profile in this field', talent: 'Create My Profile', company: 'Share Your Hiring Needs' }
+};
+const normalizeJobCategory = value => {
+  const original = typeof value === 'string' ? value : '';
+  const key = original.trim().toLowerCase();
+  const field = KTG_JOB_FIELDS.find(item => [item.code, item.KR.toLowerCase(), item.EN.toLowerCase()].includes(key));
+  if (field) return { job_category: field.code, job_category_legacy: '' };
+  if (key === 'other') return { job_category: 'other', job_category_legacy: '' };
+  const aliases = {
+    'it·소프트웨어': 'it_digital', 'it & software': 'it_digital',
+    '엔지니어링': 'engineering_tech', 'engineering': 'engineering_tech',
+    '해외영업·무역': 'business_trade_office', 'global sales & trade': 'business_trade_office'
+  };
+  if (Object.hasOwn(aliases, key)) return { job_category: aliases[key], job_category_legacy: original };
+  // Technical / other professional fields have no unambiguous new equivalent.
+  return { job_category: original ? 'legacy' : '', job_category_legacy: original };
+};
+window.KTGTaxonomy = Object.freeze({ fields: KTG_JOB_FIELDS, normalize: normalizeJobCategory });
+const ktgLocale = document.documentElement.lang.toLowerCase().startsWith('ko') ? 'KR' : 'EN';
+const fieldCopy = KTG_FIELD_COPY[ktgLocale];
+const categoryLabel = code => KTG_JOB_FIELDS.find(field => field.code === code)?.[ktgLocale] || fieldCopy[code] || '';
+
+document.querySelectorAll('[data-job-category]').forEach(element => {
+  const label = categoryLabel(element.dataset.jobCategory);
+  if (label) element.textContent = label;
+});
+document.querySelectorAll('[data-job-categories]').forEach(list => {
+  list.replaceChildren(...KTG_JOB_FIELDS.map(field => {
+    const item = document.createElement('li');
+    item.textContent = field[ktgLocale];
+    return item;
+  }));
+});
+document.querySelectorAll('select[name="job_category"]').forEach(select => {
+  select.replaceChildren(...[
+    ['', fieldCopy.choose], ...KTG_JOB_FIELDS.map(field => [field.code, field[ktgLocale]]), ['other', fieldCopy.other]
+  ].map(([value, label]) => new Option(label, value)));
+  const form = select.form;
+  const raw = new URLSearchParams(location.search).get('job_category');
+  const normalized = normalizeJobCategory(raw);
+  if (normalized.job_category === 'legacy') select.add(new Option(fieldCopy.legacy, 'legacy'));
+  select.value = normalized.job_category;
+  select.dataset.legacy = normalized.job_category_legacy;
+  const preview = document.querySelector('[data-category-preview]');
+  const updatePreview = () => {
+    if (preview) preview.textContent = select.value ? categoryLabel(select.value) : KTG_JOB_FIELDS.slice(0, 2).map(field => field[ktgLocale]).join(' · ');
+  };
+  select.addEventListener('change', () => { select.dataset.legacy = ''; updatePreview(); });
+  form.addEventListener('reset', () => { select.dataset.legacy = ''; queueMicrotask(updatePreview); });
+  updatePreview();
+});
+
+// Preserve only campaign attribution and category selection in URLs, never form data.
+const campaignKeys = ['utm_source', 'utm_medium', 'utm_campaign'];
+const currentQuery = new URLSearchParams(location.search);
+const safeCampaignValue = value => value && value.length <= 200 && !/[\u0000-\u001f\u007f]/.test(value) ? value : '';
+const campaign = new URLSearchParams();
+campaignKeys.forEach(key => {
+  const value = safeCampaignValue(currentQuery.get(key));
+  if (value) campaign.set(key, value);
+});
+document.querySelectorAll('a[href]').forEach(link => {
+  const target = new URL(link.getAttribute('href'), location.href);
+  if (target.origin !== location.origin || !['http:', 'https:'].includes(target.protocol)) return;
+  let changed = false;
+  campaign.forEach((value, key) => {
+    if (!target.searchParams.has(key)) { target.searchParams.set(key, value); changed = true; }
+  });
+  if (link.closest('.languages') && currentQuery.has('job_category')) {
+    const category = normalizeJobCategory(currentQuery.get('job_category'));
+    if (KTG_JOB_FIELDS.some(field => field.code === category.job_category)) {
+      target.searchParams.set('job_category', category.job_category); changed = true;
+    }
+  }
+  if (changed) {
+    // Preserve relative paths so both custom-domain and project-path hosting work.
+    const original = link.getAttribute('href').split(/[?#]/)[0];
+    link.setAttribute('href', `${original}?${target.searchParams}${target.hash}`);
+  }
+});
+// Same action, same wording. Navigation and informational guide links stay distinct.
+document.querySelectorAll('a.button').forEach(link => {
+  const target = new URL(link.href, location.href);
+  const type = /\/talent\/$/.test(target.pathname) || target.hash === '#talent-registration' ? 'talent'
+    : /\/companies\/$/.test(target.pathname) || target.hash === '#company-registration' ? 'company' : '';
+  if (!type) return;
+  const text = [...link.childNodes].find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+  if (text) text.textContent = `${fieldCopy[type]} `;
+});
+
 const toggle = document.querySelector('.menu-toggle');
 const nav = document.querySelector('.site-nav');
 const closeMenu = () => {
@@ -39,6 +141,14 @@ if (animationToggle) {
   });
 }
 
+// Pause offscreen without JavaScript animation or overriding the manual pause state.
+const connectionArt = document.querySelector('.connection-art');
+if (connectionArt && 'IntersectionObserver' in window) {
+  new IntersectionObserver(entries => {
+    connectionArt.classList.toggle('is-offscreen', !entries[0].isIntersecting);
+  }, { threshold: 0 }).observe(connectionArt);
+}
+
 // Public Apps Script Web App URL. No secrets belong here.
 const KTG_API_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwQalWdJy1yKaJIjKD8e17nGBMjNXhinvc-2Z_p4r9W56GkKEJPH4HTHiBNqmfdscZgRQ/exec';
 const KTG_RESUME_MAX_BYTES = 5 * 1024 * 1024;
@@ -71,6 +181,16 @@ const resumeAsBase64 = file => new Promise((resolve, reject) => {
   reader.readAsDataURL(file);
 });
 
+// Normalize only exact, known country names or ISO alpha-2 codes. Free text stays intact.
+const countryCodeFor = value => {
+  const original = value.trim();
+  if (!original || typeof Intl.DisplayNames !== 'function') return '';
+  const displays = ['en', 'ko'].map(locale => new Intl.DisplayNames([locale], { type: 'region' }));
+  const regions = 'AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW'.split(' ');
+  const key = original.toLowerCase();
+  return regions.find(code => code.toLowerCase() === key || displays.some(display => display.of(code).toLowerCase() === key)) || '';
+};
+
 const buildSubmissionPayload = async (form, fields, type) => {
   const payload = new URLSearchParams();
   fields.forEach(field => {
@@ -81,10 +201,21 @@ const buildSubmissionPayload = async (form, fields, type) => {
       payload.set(field.name, field.checked ? 'yes' : 'no');
     } else payload.set(field.name, field.value);
   });
+  const categorySelect = form.elements.namedItem('job_category');
+  payload.set('job_category', categorySelect.value);
+  payload.set('job_category_legacy', categorySelect.dataset.legacy || '');
+  payload.set('job_taxonomy_version', 'ktg-fields-v1');
+  campaign.forEach((value, key) => payload.set(key, value));
   const consentTime = new Date().toISOString();
   payload.set('privacy_consent_at', payload.get('privacy_consent') === 'yes' ? consentTime : '');
   payload.set('privacy_policy_version', KTG_PRIVACY_POLICY_VERSION);
   if (type === 'talent') {
+    // Existing human-entered values remain available to the current backend.
+    payload.set('nationality_code', countryCodeFor(payload.get('nationality') || ''));
+    payload.set('residence_country_code', countryCodeFor(payload.get('residence_country') || ''));
+    const visa = (payload.get('visa_status') || '').trim().toUpperCase();
+    payload.set('visa_status_code', payload.get('in_korea') === 'no' ? 'not_applicable'
+      : /^[A-Z]-[0-9]{1,2}(?:-[0-9]+)?$/.test(visa) ? visa.toLowerCase() : 'legacy');
     payload.set('opportunity_review_consent_at', payload.get('opportunity_review_consent') === 'yes' ? consentTime : '');
   }
   payload.set('submission_type', type);
