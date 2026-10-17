@@ -1,21 +1,22 @@
 // One locale-independent taxonomy for fields, previews and future matching.
 // Keep static HTML fallbacks readable when JavaScript is unavailable.
 const KTG_JOB_FIELDS = Object.freeze([
-  { code: 'it_digital', KR: 'IT·디지털', EN: 'IT & Digital' },
-  { code: 'engineering_tech', KR: '엔지니어링·기술', EN: 'Engineering & Technology' },
-  { code: 'manufacturing_skilled', KR: '제조·기능·숙련', EN: 'Manufacturing & Skilled Trades' },
-  { code: 'business_trade_office', KR: '비즈니스·무역·사무', EN: 'Business, Trade & Administration' },
-  { code: 'service_tourism_culinary', KR: '서비스·관광·조리', EN: 'Services, Tourism & Culinary' },
-  { code: 'content_art_sports', KR: '콘텐츠·예술·스포츠', EN: 'Content, Arts & Sports' }
+  { code: 'it_digital', KR: 'IT·디지털', EN: 'IT & Digital', VI: 'CNTT & kỹ thuật số' },
+  { code: 'engineering_tech', KR: '엔지니어링·기술', EN: 'Engineering & Technology', VI: 'Kỹ thuật & công nghệ' },
+  { code: 'manufacturing_skilled', KR: '제조·기능·숙련', EN: 'Manufacturing & Skilled Trades', VI: 'Sản xuất & lao động lành nghề' },
+  { code: 'business_trade_office', KR: '비즈니스·무역·사무', EN: 'Business, Trade & Administration', VI: 'Kinh doanh, thương mại & hành chính' },
+  { code: 'service_tourism_culinary', KR: '서비스·관광·조리', EN: 'Services, Tourism & Culinary', VI: 'Dịch vụ, du lịch & ẩm thực' },
+  { code: 'content_art_sports', KR: '콘텐츠·예술·스포츠', EN: 'Content, Arts & Sports', VI: 'Nội dung, nghệ thuật & thể thao' }
 ].map(Object.freeze));
 const KTG_FIELD_COPY = {
   KR: { other: '기타 분야', legacy: '기존 분류 — 확인 필요', choose: '선택해주세요', prepare: '이 분야로 프로필 준비하기', talent: '내 프로필 등록하기', company: '채용 문의하기' },
-  EN: { other: 'Other fields', legacy: 'Previous field — review needed', choose: 'Select an option', prepare: 'Prepare my profile in this field', talent: 'Create My Profile', company: 'Share Your Hiring Needs' }
+  EN: { other: 'Other fields', legacy: 'Previous field — review needed', choose: 'Select an option', prepare: 'Prepare my profile in this field', talent: 'Create My Profile', company: 'Share Your Hiring Needs' },
+  VI: { other: 'Lĩnh vực khác', legacy: 'Phân loại cũ — cần xem xét', choose: 'Vui lòng chọn', prepare: 'Chuẩn bị hồ sơ theo lĩnh vực này', talent: 'Tạo hồ sơ của tôi', company: 'Gửi nhu cầu tuyển dụng' }
 };
 const normalizeJobCategory = value => {
   const original = typeof value === 'string' ? value : '';
   const key = original.trim().toLowerCase();
-  const field = KTG_JOB_FIELDS.find(item => [item.code, item.KR.toLowerCase(), item.EN.toLowerCase()].includes(key));
+  const field = KTG_JOB_FIELDS.find(item => [item.code, item.KR.toLowerCase(), item.EN.toLowerCase(), item.VI.toLowerCase()].includes(key));
   if (field) return { job_category: field.code, job_category_legacy: '' };
   if (key === 'other') return { job_category: 'other', job_category_legacy: '' };
   const aliases = {
@@ -28,7 +29,7 @@ const normalizeJobCategory = value => {
   return { job_category: original ? 'legacy' : '', job_category_legacy: original };
 };
 window.KTGTaxonomy = Object.freeze({ fields: KTG_JOB_FIELDS, normalize: normalizeJobCategory });
-const ktgLocale = document.documentElement.lang.toLowerCase().startsWith('ko') ? 'KR' : 'EN';
+const ktgLocale = ({ ko: 'KR', en: 'EN', vi: 'VI' })[document.documentElement.lang.toLowerCase().split('-')[0]] || 'EN';
 const fieldCopy = KTG_FIELD_COPY[ktgLocale];
 const categoryLabel = code => KTG_JOB_FIELDS.find(field => field.code === code)?.[ktgLocale] || fieldCopy[code] || '';
 
@@ -153,7 +154,7 @@ if (connectionArt && 'IntersectionObserver' in window) {
 const KTG_API_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwQalWdJy1yKaJIjKD8e17nGBMjNXhinvc-2Z_p4r9W56GkKEJPH4HTHiBNqmfdscZgRQ/exec';
 const KTG_RESUME_MAX_BYTES = 5 * 1024 * 1024;
 const KTG_PRIVACY_POLICY_VERSION = 'privacy-v1.0-2026-10';
-const ktgLanguage = document.documentElement.lang.toLowerCase().startsWith('ko') ? 'KR' : 'EN';
+const ktgLanguage = ktgLocale;
 const submissionMessages = {
   KR: {
     submitting: '제출 중입니다. 잠시 기다려주세요.',
@@ -166,6 +167,12 @@ const submissionMessages = {
     failure: 'We could not submit your information. Please try again shortly.',
     talent: 'Your profile has been submitted successfully. We will contact you if further information or a suitable opportunity is identified.',
     company: 'Your hiring inquiry has been submitted successfully. We will contact you after reviewing the details.'
+  },
+  VI: {
+    submitting: 'Đang gửi thông tin. Vui lòng chờ.',
+    failure: 'Không thể gửi thông tin. Vui lòng thử lại sau ít phút.',
+    talent: 'Hồ sơ của bạn đã được gửi thành công. Chúng tôi sẽ liên hệ nếu cần thêm thông tin hoặc xác định được cơ hội phù hợp.',
+    company: 'Nhu cầu tuyển dụng đã được gửi thành công. Chúng tôi sẽ liên hệ sau khi xem xét thông tin.'
   }
 };
 const resumeAsBase64 = file => new Promise((resolve, reject) => {
@@ -185,7 +192,7 @@ const resumeAsBase64 = file => new Promise((resolve, reject) => {
 const countryCodeFor = value => {
   const original = value.trim();
   if (!original || typeof Intl.DisplayNames !== 'function') return '';
-  const displays = ['en', 'ko'].map(locale => new Intl.DisplayNames([locale], { type: 'region' }));
+  const displays = (ktgLocale === 'VI' ? ['vi', 'en', 'ko'] : ['en', 'ko']).map(locale => new Intl.DisplayNames([locale], { type: 'region' }));
   const regions = 'AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW'.split(' ');
   const key = original.toLowerCase();
   return regions.find(code => code.toLowerCase() === key || displays.some(display => display.of(code).toLowerCase() === key)) || '';
