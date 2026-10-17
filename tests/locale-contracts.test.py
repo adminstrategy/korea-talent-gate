@@ -54,10 +54,11 @@ for locale in ['kr', 'en', 'vi']:
         assert page.canonical == [ORIGIN + locale + '/' + suffix], file
         assert page.alternates == {tag: ORIGIN + language + '/' + suffix for language, tag in [('kr', 'ko'), ('en', 'en'), ('vi', 'vi')]}, file
         assert page.title and page.description, file
+        assert len(re.findall(r'src="[^"]*/assets/js/main\.js\?v=20261017-vi"', text)) == 1, file
         assert 'coming soon' not in text.lower(), file
         if locale in ['kr', 'en']:
             # Undo ONLY allowed additions and demand byte-for-byte equality.
-            restored = text.replace(f'<link rel="alternate" hreflang="vi" href="{ORIGIN}vi/{suffix}">', '')
+            restored = text.replace('main.js?v=20261017-vi', 'main.js').replace(f'<link rel="alternate" hreflang="vi" href="{ORIGIN}vi/{suffix}">', '')
             restored = re.sub(r'<a href="[^"]+" lang="vi" hreflang="vi">VI</a>', '<span aria-disabled="true" title="Tiếng Việt — coming soon" lang="vi">VI<span class="sr-only"> — coming soon</span></span>', restored)
             assert restored.encode() == baseline(file.relative_to(ROOT).as_posix()), file
 
